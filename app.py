@@ -15,10 +15,11 @@ def detect_objects(net, image):
     frame_tensor = torch.tensor(image)
     # Make predictions
     with torch.no_grad():
-        predictions = net(frame_tensor)
+        predictions = net.forward(frame_tensor)
     # Process predictions as needed
     # ...
     return predictions
+
 
 # Streamlit app
 def main():

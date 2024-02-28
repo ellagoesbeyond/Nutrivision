@@ -41,7 +41,7 @@ def main():
         st.session_state.snapshot_taken = True
 
     if st.session_state.snapshot_taken:
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(1)
         ret, frame = cap.read()
         if ret:
             st.session_state.snapshot = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

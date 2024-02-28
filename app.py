@@ -1,12 +1,13 @@
 import streamlit as st
 import cv2
 import torch
+import numpy as np
 
-# Load YOLO model
 @st.cache(allow_output_mutation=True)
 def load_model():
     # Load the YOLO model
-    net = torch.load("best.pt")
+    model_dict = torch.load("best.pt")
+    net = model_dict['model']  # Access the model from the dictionary
     return net
 
 # Function to perform object detection
@@ -54,6 +55,7 @@ def main():
         # Process detected objects
         # ...
         st.write("Objects detected!")
-    
+
 if __name__ == "__main__":
     main()
+

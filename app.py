@@ -1,148 +1,79 @@
 import streamlit as st
-from PIL import Image
-import torch as torch
-import numpy as np
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
-import av as av
-import logging
-import queue
-from pathlib import Path
-from typing import List, NamedTuple, Tuple
 import cv2
-import torch
-from ultralytics import YOLO
+import numpy as np
+from PIL import Image
+from ultralytics immport YOLO
 
-HERE = Path(__file__).parent
-ROOT = HERE
-
-logger = logging.getLogger(__name__)
-
-MODEL_PATH = ROOT / "best.pt"
+# Load YOLO model
+net = cv2.dnn.readNet("best.pt")
 
 
 CLASSES = [
-    "Apple",
-    "Banana",
-    "Beetroot",
-    "Bitter_Gourd",
-    "Bottle_Gourd",
-    "Cabbage",
-    "Capsicum",
-    "Carrot",
-    "Cauliflower",
-    "Cherry",
-    "Chilli",
-    "Coconut",
-    "Cucumber",
-    "EggPlant",
-    "Ginger",
-    "Grape",
-    "Green_Orange",
-    "Kiwi",
-    "Maize",
-    "Mango",
-    "Melon",
-    "Okra",
-    "Onion",
-    "Orange",
-    "Peach",
-    "Pear",
-    "Peas",
-    "Pineapple",
-    "Pomegranate",
-    "Potato",
-    "Radish",
-    "Strawberry",
-    "Tomato",
-    "Turnip",
-    "Watermelon",
-    "almond",
-    "walnut"
+    "Apple", "Banana", "Beetroot", "Bitter_Gourd", "Bottle_Gourd", "Cabbage",
+    "Capsicum", "Carrot", "Cauliflower", "Cherry", "Chilli", "Coconut", 
+    "Cucumber", "EggPlant", "Ginger", "Grape", "Green_Orange", "Kiwi", 
+    "Maize", "Mango", "Melon", "Okra", "Onion", "Orange", "Peach", "Pear", 
+    "Peas", "Pineapple", "Pomegranate", "Potato", "Radish", "Strawberry", 
+    "Tomato", "Turnip", "Watermelon", "almond", "walnut"
 ]
-# Load YOLO model
-#net = cv2.dnn.readNetFromDarknet(str(HERE / "yolov8m.cfg"), str(MODEL_PATH))
-#net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-#net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
-model = YOLO(MODEL_PATH)
-score_threshold = st.slider("Score threshold", 0.0, 1.0, 0.5, 0.05)
 
-# Setup the result queue
-result_queue = queue.Queue()
-
-class Detection(NamedTuple):
-    class_name: str
-    label: str
-    score: float
-    box: np.ndrray
-
-    def generate_label_colors():
-        return np.random.uniform(0, 255, size=(len(classes), 3))
-
-    COLORS = generate_label_colors()
-
-
-
-
-# Define the callback function for video frames
-def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
-    image = frame.to_ndarray(format="bgr24")
-
-    # Run inference
-    blob = cv2.dnn.blobFromImage(
-        cv2.resize(image, (300, 300)), 0.007843, (300, 300), 127.5
-    )
+# Function to perform object detection
+def detect_objects(image):
+    blob = cv2.dnn.blobFromImage(image, 1/255.0, (416, 416), swapRB=True, crop=False)
     net.setInput(blob)
-    output = net.forward()
+    layer_names = net.getLayerNames()
+    output_layers = [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
+    outputs = net.forward(output_layers)
 
-    h, w = image.shape[:2]
+    boxes = []
+    confidences = []
+    class_ids = []
 
-    # Convert the output array into a structured form.
-    output = output.squeeze()  # (1, 1, N, 7) -> (N, 7)
-    output = output[output[:, 2] >= score_threshold]
-    detections = [
-        Detection(
-            class_id=int(detection[1]),
-            label=CLASSES[int(detection[1])],
-            score=float(detection[2]),
-            box=(detection[3:7] * np.array([w, h, w, h])),
-        )
-        for detection in output
-    ]
+    height, width, _ = image.shape
 
-    # Render bounding boxes and captions
-    for detection in detections:
-        caption = f"{detection.label}: {round(detection.score * 100, 2)}%"
-        color = COLORS[detection.class_id]
-        xmin, ymin, xmax, ymax = detection.box.astype("int")
+    for output in outputs:
+        for detection in output:
+            scores = detection[5:]
+            class_id = np.argmax(scores)
+            confidence = scores[class_id]
+            if confidence > 0.5:
+                center_x = int(detection[0] * width)
+                center_y = int(detection[1] * height)
+                w = int(detection[2] * width)
+                h = int(detection[3] * height)
+                x = int(center_x - w / 2)
+                y = int(center_y - h / 2)
+                boxes.append([x, y, w, h])
+                confidences.append(float(confidence))
+                class_ids.append(class_id)
 
-        cv2.rectangle(image, (xmin, ymin), (xmax, ymax), color, 2)
-        cv2.putText(
-            image,
-            caption,
-            (xmin, ymin - 15 if ymin - 15 > 15 else ymin + 15),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            color,
-            2,
-        )
+    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
 
-    result_queue.put(detections)
+    for i in range(len(boxes)):
+        if i in indexes:
+            x, y, w, h = boxes[i]
+            label = CLASSES[class_ids[i]]
+            confidence = confidences[i]
+            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(image, f'{label} {confidence:.2f}', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    return av.VideoFrame.from_ndarray(image, format="bgr24")
+    return image
 
-# Setup the WebRTC streamer
-webrtc_ctx = webrtc_streamer(
-    key="object-detection",
-    mode=WebRtcMode.SENDRECV,
-    video_processor_factory=video_frame_callback,
-)
+st.title("Object Detection with YOLO")
 
-# Add a button for taking a snapshot
-if st.button("Take Snapshot"):
-    if not webrtc_ctx.state.playing:
-        st.warning("No video stream is running!")
-    else:
-        snapshot = result_queue.get()
-        # Output the data frame or do any other processing with the snapshot
-        # For example:
-        st.dataframe(snapshot)
+# Function to capture images from webcam
+def capture_image():
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        st.error("Error: Unable to open webcam.")
+        return None
+    ret, frame = cap.read()
+    cap.release()
+    return frame
+
+if st.button("Capture Image"):
+    frame = capture_image()
+    if frame is not None:
+        st.image(frame, caption="Captured Image", use_column_width=True)
+        detected_frame = detect_objects(frame)
+        st.image(detected_frame, caption="Detected Objects", use_column_width=True)

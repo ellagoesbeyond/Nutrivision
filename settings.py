@@ -16,7 +16,7 @@ ROOT = root_path.relative_to(Path.cwd())
 
 # ML Model config
 MODEL_DIR = ROOT / 'weights'
-DETECTION_MODEL = MODEL_DIR / 'the better of best.pt'
+DETECTION_MODEL = MODEL_DIR / 'rahul_best.pt'
 
 # Webcam
 WEBCAM_PATH = 0

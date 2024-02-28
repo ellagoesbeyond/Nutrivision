@@ -2,7 +2,8 @@ from ultralytics import YOLO
 import time
 import streamlit as st
 import cv2
-
+from pytube import YouTube
+import pandas as pd 
 
 import settings
 
@@ -47,9 +48,17 @@ def _display_detected_frames(conf, model, st_frame, image):
     image = cv2.resize(image, (720, int(720*(9/16))))
     trackeri = "bytetrack.yaml"
 
-    #if is_display_tracking:
-    res = model.track(image, conf=conf, persist=True, tracker=trackeri)
     
+    res = model.track(image, conf=conf, persist=True, tracker=trackeri)
+    # Iterate over each detected object
+    for det in res.xyxy[0]:
+        # Extract class and label information
+        class_id = int(det[5])
+        label = model.names[class_id]
+
+        # Print class and label information
+        print(f"Detected {label} with confidence {det[4]}")
+
     
     """else:
         # Predict the objects in the image using the YOLOv8 model
@@ -58,7 +67,7 @@ def _display_detected_frames(conf, model, st_frame, image):
 
     # # Plot the detected objects on the video frame
     res_plotted = res[0].plot()
-    print(res_plotted)
+    
     st_frame.image(res_plotted,
                    caption='We see you got ..',
                    channels="BGR",
@@ -82,18 +91,19 @@ def play_webcam(conf, model):
     Raises:
         None
     """
+    results = {}
     source_webcam = settings.WEBCAM_PATH
-    #is_display_tracker, tracker = display_tracker_options()
-    col1,col2=st.columns(2)
-    with col1:
-        go = st.button("GO")
-    with  col2:
-        stop = st.button("STOP")
+    
+  
+    go = st.sidebar.button("GO")
+    
+    stop = st.sidebar.button("STOP")
 
     if go:
         try:
             vid_cap = cv2.VideoCapture(0)
             st_frame = st.empty()
+            temp_df = pd.DataFrame(columns=['class_id', 'label'])
             while (vid_cap.isOpened()):
                 success, image = vid_cap.read()
                 if success:
@@ -103,10 +113,54 @@ def play_webcam(conf, model):
                                              image)
                      
             if stop:
+                cv2.imwrite("pics/Screenshot.png", image)
+                st.success("Screenshot saved successfully.")
                 vid_cap.release()
-        except:
-            st.error("Unable to open webcam. Please check the webcam connection.")               
-              
+                # Read the saved image
+                img = cv2.imread("pics/Screenshot.png")
+                st.frame.image(img, channels="BGR", use_column_width=True)
+                res = model.predict(img, conf=conf)[0]
+                st.write(res)
+                """if isinstance(res, list):
+                    # If multiple detection results are returned
+                    for r in res:
+                         # Iterate over each detected object
+                        for det in r:
+                            # Extract class and label information
+                            class_id = int(det[5])
+                            label = model.names[class_id]
+
+                            # Print class and label information
+                            st.write(f"Detected {label} with confidence {det[4]}")
+
+                                # Append detected object information to temp_df
+                            temp_df = temp_df.append({'class_id': class_id, 'label': label}, ignore_index=True)
+                else:
+                    # If single detection result is returned
+                    for det in res:
+                    # Extract class and label information
+                        class_id = int(det[5])
+                        label = model.names[class_id]
+
+                        # Print class and label information
+                        st.write(f"Detected {label} with confidence {det[4]}")
+
+                        # Append detected object information to temp_df
+                        temp_df = temp_df.append({'class_id': class_id, 'label': label}, ignore_index=True)
+
+                    # Construct the 'results' dictionary
+                results = {
+                            'ingredients': list(temp_df['label']),  # List of detected labels # Placeholder for type
+                            'amount_of': temp_df['label'].value_counts().to_dict().items()  # Count the amount of each label
+                    }
+
+                        # Print the results
+                st.write("Results:", results)"""
+
+        except Exception as e:
+            st.error(f"Error: {e}")
+            results = {}               
+    return results        
 
       
        

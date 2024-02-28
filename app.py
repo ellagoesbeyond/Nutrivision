@@ -1,61 +1,55 @@
 import streamlit as st
 import cv2
-import torch
-import numpy as np
+import settings  # Assuming you have a settings module with constants
+  # Assuming you have a function for displaying tracker options
+from yolo_model import YOLOv8  # Assuming you have a YOLOv8 model class
+from utils import display_detected_frames  # Assuming you have a function for displaying detected frames
+import settings
+import helper
 
-@st.cache(allow_output_mutation=True)
-def load_model():
-    # Load the YOLO model
-    model_dict = torch.load("best.pt")
-    net = model_dict['model']  # Access the model from the dictionary
-    return net
+def play_webcam(conf, model):
+    """
+    Plays a webcam stream. Detects Objects in real-time using the YOLOv8 object detection model.
 
-# Function to perform object detection
-def detect_objects(net, image):
-    # Convert image to PyTorch tensor
-    frame_tensor = torch.tensor(image)
-    # Make predictions
-    with torch.no_grad():
-        predictions = net.forward(frame_tensor)
-    # Process predictions as needed
-    # ...
-    return predictions
+    Parameters:
+        conf: Confidence of YOLOv8 model.
+        model: An instance of the `YOLOv8` class containing the YOLOv8 model.
 
-# Streamlit app
+    Returns:
+        None
+
+    Raises:
+        None
+    """
+    source_webcam = settings.WEBCAM_PATH
+    is_display_tracker, tracker = helper.display_tracker_options()
+
+    if st.sidebar.button('Detect Objects'):
+        try:
+            vid_cap = cv2.VideoCapture(source_webcam)
+            st_frame = st.empty()
+            while (vid_cap.isOpened()):
+                success, image = vid_cap.read()
+                if success:
+                    display_detected_frames(conf, model, st_frame, image, is_display_tracker, tracker)
+                else:
+                    vid_cap.release()
+                    break
+        except Exception as e:
+            st.sidebar.error("Error loading video: " + str(e))
+
+# Assuming the necessary functions and classes are imported correctly
+
 def main():
-    st.title("Object Detection App")
+    st.title("Webcam Object Detection")
     
-    net = load_model()
+    # Load YOLOv8 model
+    model = YOLOv8()  # Instantiate your YOLOv8 model
     
-    if 'snapshot' not in st.session_state:
-        st.session_state.snapshot = None
+    # Set confidence threshold
+    conf = st.slider("Confidence Threshold", min_value=0.0, max_value=1.0, value=0.5, step=0.05)
 
-    if 'snapshot_taken' not in st.session_state:
-        st.session_state.snapshot_taken = False
-
-    if 'objects_detected' not in st.session_state:
-        st.session_state.objects_detected = None
-
-    st.write("Click the button below to take a snapshot:")
-    if st.button("Take Snapshot"):
-        st.session_state.snapshot_taken = True
-
-    if st.session_state.snapshot_taken:
-        cap = cv2.VideoCapture(1)
-        ret, frame = cap.read()
-        if ret:
-            st.session_state.snapshot = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            cap.release()
-            st.image(st.session_state.snapshot, use_column_width=True)
-            if st.button("Detect Objects"):
-                objects_detected = detect_objects(net, st.session_state.snapshot)
-                st.session_state.objects_detected = objects_detected
-
-    if st.session_state.objects_detected is not None:
-        # Process detected objects
-        # ...
-        st.write("Objects detected!")
+    play_webcam(conf, model)
 
 if __name__ == "__main__":
     main()
-

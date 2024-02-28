@@ -2,7 +2,7 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-from ultralytics immport YOLO
+from ultralytics import YOLO
 
 # Load YOLO model
 net = cv2.dnn.readNet("best.pt")

@@ -7,8 +7,6 @@ import torch
 def load_model():
     # Load the YOLO model
     net = torch.load("best.pt")
-    # Set the model to evaluation mode
-    net.eval()
     return net
 
 # Function to perform object detection
@@ -27,6 +25,7 @@ def main():
     st.title("Object Detection App")
     
     net = load_model()
+    net.eval()  # Set model to evaluation mode here
     
     if 'snapshot' not in st.session_state:
         st.session_state.snapshot = None
